@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Location Share</title>
+  </head>
+  <body style="font-family:sans-serif;padding:24px">
+    <button id="btn">Share location</button>
+    <p id="status"></p>
+
+    <script>
+      const status = document.getElementById("status");
+      document.getElementById("btn").onclick = () => {
+        if (!navigator.geolocation) {
+          status.textContent = "Geolocation not supported.";
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            status.textContent = "Location captured.";
+            await fetch("https://YOUR-ENDPOINT-HERE", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy
+              })
+            });
+          },
+          () => status.textContent = "Permission denied or unavailable."
+        );
+      };
+    </script>
+  </body>
+</html>
