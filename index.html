@@ -6,32 +6,90 @@
     <title>Location Share</title>
   </head>
   <body style="font-family:sans-serif;padding:24px">
-    <button id="btn">Share location</button>
-    <p id="status"></p>
+    <button id="btn" type="button">Share location</button>
+    <p id="status" aria-live="polite"></p>
 
     <script>
       const status = document.getElementById("status");
-      document.getElementById("btn").onclick = () => {
+      const btn = document.getElementById("btn");
+
+      // Replace this with your real endpoint (must be HTTPS in production).
+      const ENDPOINT = "https://example.com/receive-location";
+
+      btn.addEventListener("click", async () => {
+        status.textContent = "";
+
         if (!navigator.geolocation) {
-          status.textContent = "Geolocation not supported.";
+          status.textContent = "Geolocation not supported by your browser.";
           return;
         }
+
+        // Optional: check permission state to give better UX
+        if (navigator.permissions) {
+          try {
+            const p = await navigator.permissions.query({ name: "geolocation" });
+            if (p.state === "denied") {
+              status.textContent = "Location permission previously denied. Please enable it in your browser settings.";
+              return;
+            }
+          } catch (e) {
+            // Permissions API may not be available — ignore
+          }
+        }
+
+        status.textContent = "Requesting location…";
+
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
-            status.textContent = "Location captured.";
-            await fetch("https://YOUR-ENDPOINT-HERE", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracy: pos.coords.accuracy
-              })
-            });
+            status.textContent = "Location captured. Sending…";
+
+            const payload = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+              timestamp: pos.timestamp
+            };
+
+            try {
+              const resp = await fetch(ENDPOINT, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                // If you're on the same origin you can remove credentials; otherwise configure as needed
+                // credentials: 'include'
+              });
+
+              if (!resp.ok) {
+                const text = await resp.text().catch(()=>resp.statusText);
+                status.textContent = `Server error: ${resp.status} ${text}`;
+                return;
+              }
+
+              status.textContent = "Location sent successfully.";
+            } catch (err) {
+              status.textContent = "Network error while sending location.";
+              console.error("Fetch error:", err);
+            }
           },
-          () => status.textContent = "Permission denied or unavailable."
+          (err) => {
+            if (err.code === err.PERMISSION_DENIED) {
+              status.textContent = "Permission denied.";
+            } else if (err.code === err.POSITION_UNAVAILABLE) {
+              status.textContent = "Position unavailable.";
+            } else if (err.code === err.TIMEOUT) {
+              status.textContent = "Request timed out.";
+            } else {
+              status.textContent = "Error getting location.";
+            }
+            console.error("Geolocation error:", err);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
         );
-      };
+      });
     </script>
   </body>
 </html>
